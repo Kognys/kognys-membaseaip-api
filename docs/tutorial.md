@@ -498,12 +498,7 @@ MEMBASE_ACCOUNT=0xYourAddress
 MEMBASE_SECRET_KEY=0xYourPrivateKey
 
 # Required for AIP features
-OPENAI_API_KEY=sk-...
 ENABLE_AIP=true
-
-# Optional
-API_KEY=your-api-key
-CHROMA_PERSIST_DIR=./chroma_db
 ```
 
 ## Troubleshooting
@@ -511,6 +506,6 @@ CHROMA_PERSIST_DIR=./chroma_db
 1. **Agent not found**: Ensure the agent is created (AIP) or registered (blockchain)
 2. **Memory not persisting**: Check hub connectivity and auto_upload settings
 3. **Search returning no results**: Lower similarity_threshold or check embeddings
-4. **AIP features not working**: Verify ENABLE_AIP=true and OpenAI API key
+4. **AIP features not working**: Verify ENABLE_AIP=true
 
 This tutorial covers the core functionality of the Membase API. For more details, check the interactive documentation at `/docs` when running the API.

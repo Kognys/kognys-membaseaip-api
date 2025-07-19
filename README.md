@@ -48,13 +48,8 @@ API_KEY=your-secret-api-key  # Optional API key for protection
 # Storage
 CHROMA_PERSIST_DIR=./chroma_db
 
-# AIP Configuration (optional)
+# AIP Configuration
 ENABLE_AIP=true
-AIP_GRPC_HOST=localhost:50051
-AIP_AGENT_TIMEOUT=120
-AIP_MAX_AGENTS=10
-AIP_DEFAULT_LLM=openai
-OPENAI_API_KEY=your-openai-api-key  # Required for AIP features
 ```
 
 ## Running the API
@@ -273,15 +268,12 @@ docker run -p 8000:8000 --env-file .env membase-api
 The API includes optional AIP (Agent Interoperability Protocol) features that add:
 
 - **Advanced Agent Communication**: Agents can send messages to each other
-- **LLM Integration**: Agents can process queries using OpenAI or other LLMs
 - **Intelligent Routing**: Automatically route requests to the best handler
 - **Dynamic Configuration**: Update agent prompts and behavior on the fly
 
 ### Enabling AIP Features
 
-1. Set `ENABLE_AIP=true` in your `.env` file
-2. Configure `OPENAI_API_KEY` for LLM features
-3. Ensure the AIP gRPC service is running (if using external agents)
+Set `ENABLE_AIP=true` in your `.env` file
 
 ### AIP Usage Example
 
