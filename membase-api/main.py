@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,6 +14,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Define lifespan context manager
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info(f"Starting {settings.app_name} v{settings.app_version}")
+    logger.info(f"Membase ID: {settings.membase_id}")
+    logger.info(f"API listening on {settings.api_host}:{settings.api_port}")
+    
+    # Verify configuration
+    if not settings.membase_account or settings.membase_account == "0x0000000000000000000000000000000000000000":
+        logger.warning("MEMBASE_ACCOUNT not configured or using default value")
+    
+    if not settings.membase_secret_key or settings.membase_secret_key == "0x0000000000000000000000000000000000000000000000000000000000000000":
+        logger.warning("MEMBASE_SECRET_KEY not configured or using default value")
+    
+    yield
+    
+    # Shutdown
+    logger.info(f"Shutting down {settings.app_name}")
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.app_name,
@@ -20,7 +41,8 @@ app = FastAPI(
     version=settings.app_version,
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=lifespan
 )
 
 # Configure CORS
@@ -80,26 +102,6 @@ async def global_exception_handler(request, exc):
         }
     )
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup."""
-    logger.info(f"Starting {settings.app_name} v{settings.app_version}")
-    logger.info(f"Membase ID: {settings.membase_id}")
-    logger.info(f"API listening on {settings.api_host}:{settings.api_port}")
-    
-    # Verify configuration
-    if not settings.membase_account or settings.membase_account == "0x0000000000000000000000000000000000000000":
-        logger.warning("MEMBASE_ACCOUNT not configured or using default value")
-    
-    if not settings.membase_secret_key or settings.membase_secret_key == "0x0000000000000000000000000000000000000000000000000000000000000000":
-        logger.warning("MEMBASE_SECRET_KEY not configured or using default value")
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown."""
-    logger.info(f"Shutting down {settings.app_name}")
 
 if __name__ == "__main__":
     # Run the application
