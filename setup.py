@@ -15,5 +15,10 @@ setup(
     author="",
     author_email="",
     python_requires=">=3.10",
-    install_requires=[],
+    install_requires=[
+        "chromadb>=0.6.3",
+        "loguru>=0.7.3",
+        "requests>=2.32.3",
+        "web3>=7.8.0",
+    ],
 ) 

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     
     # API configuration
     api_host: str = os.getenv("API_HOST", "0.0.0.0")
-    api_port: int = int(os.getenv("API_PORT", "8000"))
+    api_port: int = int(os.getenv("PORT", os.getenv("API_PORT", "8000")))
     api_prefix: str = os.getenv("API_PREFIX", "/api/v1")
     api_key: Optional[str] = os.getenv("API_KEY", None)
     
