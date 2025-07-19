@@ -21,8 +21,6 @@ router = APIRouter(
 )
 
 if settings.enable_aip:
-    from core.aip import AIPRouterService
-    from core.aip.exceptions import RouterInitializationError
     
     # Create router service instance
     _router_service = None
@@ -30,8 +28,15 @@ if settings.enable_aip:
     async def get_router_service():
         global _router_service
         if _router_service is None:
-            _router_service = AIPRouterService()
-            await _router_service.initialize_router()
+            try:
+                from core.aip import AIPRouterService
+                _router_service = AIPRouterService()
+                await _router_service.initialize_router()
+            except ImportError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"AIP dependencies not available: {str(e)}"
+                )
         return _router_service
     
     @router.post("", response_model=RouteResponse)
@@ -66,16 +71,17 @@ if settings.enable_aip:
             
             return RouteResponse(routes=route_results)
             
-        except RouterInitializationError as e:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Router service not available: {str(e)}"
-            )
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error routing request: {str(e)}"
-            )
+            if "RouterInitializationError" in str(type(e)):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Router service not available: {str(e)}"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error routing request: {str(e)}"
+                )
     
     @router.get("/categories", response_model=List[RouteCategoryInfo])
     async def get_routing_categories(

@@ -195,17 +195,21 @@ async def check_authorization(
 
 # AIP Agent Communication Endpoints
 if settings.enable_aip:
-    from core.aip import AIPAgentManager
-    from core.aip.exceptions import AgentNotFoundError, AgentTimeoutError
-    
     # Create agent manager instance
     _agent_manager = None
     
     async def get_agent_manager():
         global _agent_manager
         if _agent_manager is None:
-            _agent_manager = AIPAgentManager()
-            await _agent_manager.initialize()
+            try:
+                from core.aip import AIPAgentManager
+                _agent_manager = AIPAgentManager()
+                await _agent_manager.initialize()
+            except ImportError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"AIP dependencies not available: {str(e)}"
+                )
         return _agent_manager
     
     @router.post("/create", response_model=ActiveAgentInfo)
@@ -270,21 +274,22 @@ if settings.enable_aip:
                 agent_id=agent_id
             )
             
-        except AgentNotFoundError:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Agent {agent_id} not found"
-            )
-        except AgentTimeoutError as e:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail=str(e)
-            )
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error processing query: {str(e)}"
-            )
+            if "AgentNotFoundError" in str(type(e)):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Agent {agent_id} not found"
+                )
+            elif "AgentTimeoutError" in str(type(e)):
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail=str(e)
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error processing query: {str(e)}"
+                )
     
     @router.post("/{agent_id}/message", response_model=MessageResponse)
     async def send_message_to_agent(
@@ -312,21 +317,22 @@ if settings.enable_aip:
                 target_agent=request.target_agent_id
             )
             
-        except AgentNotFoundError as e:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(e)
-            )
-        except AgentTimeoutError as e:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail=str(e)
-            )
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error sending message: {str(e)}"
-            )
+            if "AgentNotFoundError" in str(type(e)):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e)
+                )
+            elif "AgentTimeoutError" in str(type(e)):
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail=str(e)
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error sending message: {str(e)}"
+                )
     
     @router.put("/{agent_id}/prompt")
     async def update_agent_prompt(
@@ -348,16 +354,17 @@ if settings.enable_aip:
                 "message": f"System prompt updated for agent {agent_id}"
             }
             
-        except AgentNotFoundError:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Agent {agent_id} not found"
-            )
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error updating prompt: {str(e)}"
-            )
+            if "AgentNotFoundError" in str(type(e)):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Agent {agent_id} not found"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error updating prompt: {str(e)}"
+                )
     
     @router.get("/active", response_model=List[ActiveAgentInfo])
     async def list_active_agents(
@@ -407,13 +414,14 @@ if settings.enable_aip:
                 "message": f"Agent {agent_id} stopped successfully"
             }
             
-        except AgentNotFoundError:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Agent {agent_id} not found"
-            )
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error stopping agent: {str(e)}"
-            )
+            if "AgentNotFoundError" in str(type(e)):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Agent {agent_id} not found"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error stopping agent: {str(e)}"
+                )

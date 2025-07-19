@@ -72,9 +72,15 @@ async def get_agent_manager():
     global _agent_manager
     if settings.enable_aip:
         if _agent_manager is None:
-            from core.aip import AIPAgentManager
-            _agent_manager = AIPAgentManager()
-            await _agent_manager.initialize()
+            try:
+                from core.aip import AIPAgentManager
+                _agent_manager = AIPAgentManager()
+                await _agent_manager.initialize()
+            except ImportError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"AIP dependencies not available: {str(e)}"
+                )
         return _agent_manager
     else:
         raise HTTPException(
@@ -88,9 +94,15 @@ async def get_router_service():
     global _router_service
     if settings.enable_aip:
         if _router_service is None:
-            from core.aip import AIPRouterService
-            _router_service = AIPRouterService()
-            await _router_service.initialize_router()
+            try:
+                from core.aip import AIPRouterService
+                _router_service = AIPRouterService()
+                await _router_service.initialize_router()
+            except ImportError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"AIP dependencies not available: {str(e)}"
+                )
         return _router_service
     else:
         raise HTTPException(
