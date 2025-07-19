@@ -215,7 +215,7 @@ if settings.enable_aip:
     @router.post("/create", response_model=ActiveAgentInfo)
     async def create_aip_agent(
         request: CreateAgentRequest,
-        agent_manager: AIPAgentManager = Depends(get_agent_manager),
+        agent_manager = Depends(get_agent_manager),
         _auth=auth_dep
     ):
         """
@@ -248,7 +248,7 @@ if settings.enable_aip:
     async def query_agent(
         agent_id: str,
         request: QueryRequest,
-        agent_manager: AIPAgentManager = Depends(get_agent_manager),
+        agent_manager = Depends(get_agent_manager),
         _auth=auth_dep
     ):
         """
@@ -295,7 +295,7 @@ if settings.enable_aip:
     async def send_message_to_agent(
         agent_id: str,
         request: MessageRequest,
-        agent_manager: AIPAgentManager = Depends(get_agent_manager),
+        agent_manager = Depends(get_agent_manager),
         _auth=auth_dep
     ):
         """
@@ -338,7 +338,7 @@ if settings.enable_aip:
     async def update_agent_prompt(
         agent_id: str,
         request: UpdatePromptRequest,
-        agent_manager: AIPAgentManager = Depends(get_agent_manager),
+        agent_manager = Depends(get_agent_manager),
         _auth=auth_dep
     ):
         """
@@ -368,7 +368,7 @@ if settings.enable_aip:
     
     @router.get("/active", response_model=List[ActiveAgentInfo])
     async def list_active_agents(
-        agent_manager: AIPAgentManager = Depends(get_agent_manager),
+        agent_manager = Depends(get_agent_manager),
         _auth=auth_dep
     ):
         """
@@ -398,7 +398,7 @@ if settings.enable_aip:
     @router.delete("/{agent_id}/stop")
     async def stop_agent(
         agent_id: str,
-        agent_manager: AIPAgentManager = Depends(get_agent_manager),
+        agent_manager = Depends(get_agent_manager),
         _auth=auth_dep
     ):
         """

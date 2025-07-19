@@ -42,7 +42,7 @@ if settings.enable_aip:
     @router.post("", response_model=RouteResponse)
     async def route_request(
         request: RouteRequest,
-        router_service: AIPRouterService = Depends(get_router_service),
+        router_service = Depends(get_router_service),
         _auth=auth_dep
     ):
         """
@@ -85,7 +85,7 @@ if settings.enable_aip:
     
     @router.get("/categories", response_model=List[RouteCategoryInfo])
     async def get_routing_categories(
-        router_service: AIPRouterService = Depends(get_router_service),
+        router_service = Depends(get_router_service),
         _auth=auth_dep
     ):
         """
@@ -116,7 +116,7 @@ if settings.enable_aip:
     @router.post("/agent", response_model=RouteResponse)
     async def route_to_agent(
         request: RouteRequest,
-        router_service: AIPRouterService = Depends(get_router_service),
+        router_service = Depends(get_router_service),
         _auth=auth_dep
     ):
         """
@@ -153,7 +153,7 @@ if settings.enable_aip:
     @router.post("/function", response_model=RouteResponse)
     async def route_to_function(
         request: RouteRequest,
-        router_service: AIPRouterService = Depends(get_router_service),
+        router_service = Depends(get_router_service),
         _auth=auth_dep
     ):
         """
