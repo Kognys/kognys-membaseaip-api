@@ -5,9 +5,9 @@ A FastAPI wrapper for the Membase SDK, providing RESTful endpoints for interacti
 ## Features
 
 - **Agent Management**: Register agents and manage blockchain-based permissions
+- **AIP Integration**: Advanced agent communication and intelligent routing
 - **Task Coordination**: Create, join, and complete tasks with rewards
 - **Memory/Conversations**: Store and retrieve AI conversation histories
-- **Knowledge Base**: Vector storage for documents with similarity search
 - **Auto-upload to Hub**: Automatic synchronization with decentralized storage
 - **API Key Authentication**: Optional API key protection
 - **Interactive Documentation**: Built-in Swagger UI and ReDoc
@@ -47,6 +47,14 @@ API_KEY=your-secret-api-key  # Optional API key for protection
 
 # Storage
 CHROMA_PERSIST_DIR=./chroma_db
+
+# AIP Configuration (optional)
+ENABLE_AIP=true
+AIP_GRPC_HOST=localhost:50051
+AIP_AGENT_TIMEOUT=120
+AIP_MAX_AGENTS=10
+AIP_DEFAULT_LLM=openai
+OPENAI_API_KEY=your-openai-api-key  # Required for AIP features
 ```
 
 ## Running the API
@@ -76,10 +84,18 @@ GET /health
 ```
 
 ### Agents
-- `POST /api/v1/agents/register` - Register a new agent
+- `POST /api/v1/agents/register` - Register a new agent on blockchain
 - `GET /api/v1/agents/{agent_id}` - Get agent information
 - `POST /api/v1/agents/buy-auth` - Buy authorization between agents
 - `GET /api/v1/agents/{agent_id}/has-auth/{target_id}` - Check authorization
+
+#### AIP Agent Features (when ENABLE_AIP=true)
+- `POST /api/v1/agents/create` - Create an AIP agent with LLM capabilities
+- `POST /api/v1/agents/{agent_id}/query` - Process queries with advanced options
+- `POST /api/v1/agents/{agent_id}/message` - Send messages between agents
+- `PUT /api/v1/agents/{agent_id}/prompt` - Update agent system prompt
+- `GET /api/v1/agents/active` - List active AIP agents
+- `DELETE /api/v1/agents/{agent_id}/stop` - Stop an AIP agent
 
 ### Tasks
 - `POST /api/v1/tasks/create` - Create a new task
@@ -92,11 +108,9 @@ GET /health
 - `GET /api/v1/memory/conversations` - List all conversations
 - `GET /api/v1/memory/conversations/{conversation_id}` - Get conversation messages
 - `POST /api/v1/memory/conversations/{conversation_id}/messages` - Add messages
-- `DELETE /api/v1/memory/conversations/{conversation_id}/messages/{index}` - Delete message
 - `DELETE /api/v1/memory/conversations/{conversation_id}` - Clear conversation
-- `POST /api/v1/memory/conversations/{conversation_id}/export` - Export conversation
-- `POST /api/v1/memory/conversations/{conversation_id}/import` - Import conversation
-- `POST /api/v1/memory/conversations/{conversation_id}/upload` - Upload to hub
+- `DELETE /api/v1/memory/conversations/{conversation_id}/messages/{index}` - Delete specific message
+- `POST /api/v1/memory/conversations/{conversation_id}/upload` - Manually upload to hub
 
 ### Knowledge Base
 - `POST /api/v1/knowledge/documents` - Add documents
@@ -107,6 +121,12 @@ GET /health
 - `POST /api/v1/knowledge/documents/optimal-threshold` - Find optimal search threshold
 - `DELETE /api/v1/knowledge/documents/all` - Clear all documents
 - `POST /api/v1/knowledge/documents/upload` - Upload to hub
+
+### Intelligent Routing (when ENABLE_AIP=true)
+- `POST /api/v1/route` - Intelligently route requests to appropriate handlers
+- `GET /api/v1/route/categories` - List available routing categories
+- `POST /api/v1/route/agent` - Route specifically to agents
+- `POST /api/v1/route/function` - Route specifically to functions
 
 ## Usage Examples
 
@@ -142,31 +162,41 @@ msg_response = requests.post(
 )
 ```
 
-### 3. Add and Search Knowledge
+### 3. Create and Query AIP Agent
 ```python
-# Add document
-doc_response = requests.post(
-    "http://localhost:8000/api/v1/knowledge/documents",
+# Create AIP agent
+agent_response = requests.post(
+    "http://localhost:8000/api/v1/agents/create",
     json={
-        "documents": {
-            "content": "Python is a high-level programming language...",
-            "metadata": {"category": "programming", "language": "python"}
-        }
+        "agent_id": "assistant",
+        "description": "A helpful AI assistant"
     }
 )
 
-# Search documents
-search_response = requests.get(
-    "http://localhost:8000/api/v1/knowledge/documents/search",
-    params={
+# Query the agent
+query_response = requests.post(
+    "http://localhost:8000/api/v1/agents/assistant/query",
+    json={
         "query": "What is Python?",
-        "top_k": 5,
-        "similarity_threshold": 0.7
+        "use_tool_call": True
     }
 )
 ```
 
-### 4. Create and Manage Tasks
+### 4. Use Intelligent Routing
+```python
+# Route a request
+route_response = requests.post(
+    "http://localhost:8000/api/v1/route",
+    json={
+        "request": "Calculate tax on $5000 income",
+        "top_k": 2
+    }
+)
+# Returns best handlers for the request
+```
+
+### 5. Create and Manage Tasks
 ```python
 # Create task
 task_response = requests.post(
@@ -238,12 +268,60 @@ docker build -t membase-api .
 docker run -p 8000:8000 --env-file .env membase-api
 ```
 
+## AIP Integration
+
+The API includes optional AIP (Agent Interoperability Protocol) features that add:
+
+- **Advanced Agent Communication**: Agents can send messages to each other
+- **LLM Integration**: Agents can process queries using OpenAI or other LLMs
+- **Intelligent Routing**: Automatically route requests to the best handler
+- **Dynamic Configuration**: Update agent prompts and behavior on the fly
+
+### Enabling AIP Features
+
+1. Set `ENABLE_AIP=true` in your `.env` file
+2. Configure `OPENAI_API_KEY` for LLM features
+3. Ensure the AIP gRPC service is running (if using external agents)
+
+### AIP Usage Example
+
+```python
+# Create an intelligent agent
+response = requests.post(
+    "http://localhost:8000/api/v1/agents/create",
+    json={
+        "agent_id": "trading_agent",
+        "description": "A cryptocurrency trading assistant"
+    }
+)
+
+# Query the agent
+response = requests.post(
+    "http://localhost:8000/api/v1/agents/trading_agent/query",
+    json={
+        "query": "What's the current BTC price?",
+        "conversation_id": "trading-session-1",
+        "use_tool_call": True
+    }
+)
+
+# Send inter-agent message
+response = requests.post(
+    "http://localhost:8000/api/v1/agents/trading_agent/message",
+    json={
+        "target_agent_id": "analyst_agent",
+        "message": "Should we buy BTC now?"
+    }
+)
+```
+
 ## Development Tips
 
 1. **Enable Debug Logging**: Set `LOG_LEVEL=DEBUG` in `.env`
 2. **Auto-reload**: The development server auto-reloads on code changes
 3. **Test Endpoints**: Use the Swagger UI at `/docs` for testing
 4. **Monitor Hub Uploads**: Check logs for background upload status
+5. **AIP Development**: Set `ENABLE_AIP=false` to disable AIP features during development
 
 ## Troubleshooting
 

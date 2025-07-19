@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     app_description: str = "FastAPI wrapper for Membase SDK - Decentralized AI Memory Layer"
     
+    # AIP Configuration
+    enable_aip: bool = os.getenv("ENABLE_AIP", "true").lower() == "true"
+    aip_grpc_host: str = os.getenv("AIP_GRPC_HOST", "localhost:50051")
+    aip_agent_timeout: int = int(os.getenv("AIP_AGENT_TIMEOUT", "120"))
+    aip_max_agents: int = int(os.getenv("AIP_MAX_AGENTS", "10"))
+    aip_default_llm: str = os.getenv("AIP_DEFAULT_LLM", "openai")
+    openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY", None)
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

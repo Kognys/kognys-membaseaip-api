@@ -62,8 +62,47 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> bool:
     return True
 
 
+# AIP service dependencies (lazy loading)
+_agent_manager = None
+_router_service = None
+
+
+async def get_agent_manager():
+    """Get or create AIPAgentManager singleton instance."""
+    global _agent_manager
+    if settings.enable_aip:
+        if _agent_manager is None:
+            from core.aip import AIPAgentManager
+            _agent_manager = AIPAgentManager()
+            await _agent_manager.initialize()
+        return _agent_manager
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AIP is disabled. Set ENABLE_AIP=true to enable."
+        )
+
+
+async def get_router_service():
+    """Get or create AIPRouterService singleton instance."""
+    global _router_service
+    if settings.enable_aip:
+        if _router_service is None:
+            from core.aip import AIPRouterService
+            _router_service = AIPRouterService()
+            await _router_service.initialize_router()
+        return _router_service
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AIP is disabled. Set ENABLE_AIP=true to enable."
+        )
+
+
 # Dependency injection
 memory_dep = Depends(get_multi_memory)
 knowledge_dep = Depends(get_knowledge_base)
 chain_dep = Depends(get_chain)
 auth_dep = Depends(verify_api_key)
+agent_manager_dep = Depends(get_agent_manager)
+router_service_dep = Depends(get_router_service)

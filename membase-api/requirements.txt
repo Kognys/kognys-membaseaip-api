@@ -5,3 +5,8 @@ pydantic-settings==2.6.1
 python-dotenv==1.0.1
 python-multipart==0.0.18
 # membase is installed from local source in Dockerfile
+
+# AIP dependencies
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+openai>=1.0.0

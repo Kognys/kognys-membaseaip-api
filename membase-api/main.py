@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 import logging
 from core.config import settings
-from api import agents, tasks, memory, knowledge
+from api import agents, tasks, memory, knowledge, route
 
 # Configure logging
 logging.basicConfig(
@@ -81,7 +81,8 @@ async def root():
             "agents": f"{settings.api_prefix}/agents",
             "tasks": f"{settings.api_prefix}/tasks",
             "memory": f"{settings.api_prefix}/memory",
-            "knowledge": f"{settings.api_prefix}/knowledge"
+            "knowledge": f"{settings.api_prefix}/knowledge",
+            "route": f"{settings.api_prefix}/route" if settings.enable_aip else None
         }
     }
 
@@ -90,6 +91,10 @@ app.include_router(agents.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(memory.router, prefix=settings.api_prefix)
 app.include_router(knowledge.router, prefix=settings.api_prefix)
+
+# Include AIP route router if enabled
+if settings.enable_aip:
+    app.include_router(route.router, prefix=settings.api_prefix)
 
 # Global exception handler
 @app.exception_handler(Exception)

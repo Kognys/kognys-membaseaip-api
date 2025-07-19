@@ -1,9 +1,5 @@
-from fastapi import APIRouter, HTTPException, status, UploadFile, File, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional, Union
-import json
-import os
-import tempfile
 from datetime import datetime
 from membase.memory.message import Message
 from membase.memory.multi_memory import MultiMemory
@@ -14,13 +10,7 @@ from models.memory import (
     AddMessageRequest,
     GetMessagesRequest,
     MessagesResponse,
-    MessageResponse,
-    DeleteMessageResponse,
-    ClearConversationResponse,
-    ExportRequest,
-    ExportResponse,
-    ImportRequest,
-    ImportResponse
+    MessageResponse
 )
 from core.dependencies import memory_dep, auth_dep
 
@@ -224,7 +214,45 @@ async def add_messages(
         )
 
 
-@router.delete("/conversations/{conversation_id}/messages/{index}", response_model=DeleteMessageResponse)
+@router.delete("/conversations/{conversation_id}")
+async def clear_conversation(
+    conversation_id: str,
+    memory: MultiMemory = memory_dep,
+    _auth=auth_dep
+):
+    """
+    Clear all messages from a conversation.
+    
+    The conversation still exists but will have no messages.
+    """
+    try:
+        # Check if conversation exists
+        if conversation_id not in memory.get_all_conversations():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conversation {conversation_id} not found"
+            )
+        
+        # Clear the conversation
+        buffered_memory = memory._get_or_create_buffered_memory(conversation_id)
+        buffered_memory.clear()
+        
+        return {
+            "success": True,
+            "message": f"Conversation {conversation_id} cleared successfully",
+            "conversation_id": conversation_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error clearing conversation: {str(e)}"
+        )
+
+
+@router.delete("/conversations/{conversation_id}/messages/{index}")
 async def delete_message(
     conversation_id: str,
     index: int,
@@ -251,11 +279,11 @@ async def delete_message(
         # Delete the message
         buffered_memory.delete(index)
         
-        return DeleteMessageResponse(
-            success=True,
-            message=f"Message at index {index} deleted successfully",
-            deleted_index=index
-        )
+        return {
+            "success": True,
+            "message": f"Message at index {index} deleted successfully",
+            "deleted_index": index
+        }
         
     except HTTPException:
         raise
@@ -266,176 +294,9 @@ async def delete_message(
         )
 
 
-@router.delete("/conversations/{conversation_id}", response_model=ClearConversationResponse)
-async def clear_conversation(
-    conversation_id: str,
-    memory: MultiMemory = memory_dep,
-    _auth=auth_dep
-):
-    """
-    Clear all messages from a conversation.
-    
-    The conversation still exists but will have no messages.
-    """
-    try:
-        # Check if conversation exists
-        if conversation_id not in memory.get_all_conversations():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Conversation {conversation_id} not found"
-            )
-        
-        # Clear the conversation
-        buffered_memory = memory._get_or_create_buffered_memory(conversation_id)
-        buffered_memory.clear()
-        
-        return ClearConversationResponse(
-            success=True,
-            message=f"Conversation {conversation_id} cleared successfully",
-            conversation_id=conversation_id
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error clearing conversation: {str(e)}"
-        )
-
-
-@router.post("/conversations/{conversation_id}/export")
-async def export_conversation(
-    conversation_id: str,
-    request: Optional[ExportRequest] = None,
-    memory: MultiMemory = memory_dep,
-    _auth=auth_dep
-):
-    """
-    Export a conversation to a file or return as JSON.
-    
-    If file_path is provided, saves to that location and returns the file.
-    Otherwise, returns the conversation data as JSON in the response.
-    """
-    try:
-        # Get the conversation's BufferedMemory
-        buffered_memory = memory._get_or_create_buffered_memory(conversation_id)
-        
-        if request and request.file_path:
-            # Export to file
-            buffered_memory.export(request.file_path)
-            
-            # Return the file
-            if os.path.exists(request.file_path):
-                return FileResponse(
-                    path=request.file_path,
-                    media_type='application/json',
-                    filename=os.path.basename(request.file_path)
-                )
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to export to file {request.file_path}"
-                )
-        else:
-            # Export to temporary file and read content
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
-                tmp_path = tmp.name
-            
-            try:
-                buffered_memory.export(tmp_path)
-                
-                with open(tmp_path, 'r') as f:
-                    content = json.load(f)
-                
-                return ExportResponse(
-                    success=True,
-                    message="Conversation exported successfully",
-                    content=content
-                )
-            finally:
-                # Clean up temporary file
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error exporting conversation: {str(e)}"
-        )
-
-
-@router.post("/conversations/{conversation_id}/import", response_model=ImportResponse)
-async def import_conversation(
-    conversation_id: str,
-    request: ImportRequest,
-    memory: MultiMemory = memory_dep,
-    _auth=auth_dep
-):
-    """
-    Import messages into a conversation from a file or JSON data.
-    
-    Can optionally clear existing messages before import.
-    """
-    try:
-        # Get the conversation's BufferedMemory
-        buffered_memory = memory._get_or_create_buffered_memory(conversation_id)
-        
-        messages_before = len(buffered_memory.get())
-        
-        if request.file_path:
-            # Import from file
-            if not os.path.exists(request.file_path):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File {request.file_path} not found"
-                )
-            
-            buffered_memory.load(request.file_path, clear_previous=request.clear_previous)
-            
-        elif request.content:
-            # Import from provided content
-            # Save to temporary file and load
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
-                json.dump(request.content, tmp)
-                tmp_path = tmp.name
-            
-            try:
-                buffered_memory.load(tmp_path, clear_previous=request.clear_previous)
-            finally:
-                # Clean up temporary file
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either file_path or content must be provided"
-            )
-        
-        messages_after = len(buffered_memory.get())
-        messages_imported = messages_after - (0 if request.clear_previous else messages_before)
-        
-        return ImportResponse(
-            success=True,
-            message=f"Successfully imported {messages_imported} messages",
-            messages_imported=messages_imported
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error importing conversation: {str(e)}"
-        )
-
-
 @router.post("/conversations/{conversation_id}/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_conversation_to_hub(
     conversation_id: str,
-    background_tasks: BackgroundTasks,
     memory: MultiMemory = memory_dep,
     _auth=auth_dep
 ):
@@ -443,7 +304,7 @@ async def upload_conversation_to_hub(
     Manually trigger upload of a conversation to the hub.
     
     This is usually done automatically if auto_upload_to_hub is enabled.
-    Returns immediately and uploads in the background.
+    Returns immediately with 202 Accepted status.
     """
     try:
         # Check if conversation exists
@@ -456,9 +317,9 @@ async def upload_conversation_to_hub(
         # Get the conversation's BufferedMemory
         buffered_memory = memory._get_or_create_buffered_memory(conversation_id)
         
-        # Trigger upload in background
+        # Trigger upload
         if hasattr(buffered_memory, 'upload_hub'):
-            background_tasks.add_task(buffered_memory.upload_hub)
+            buffered_memory.upload_hub()
             
             return {
                 "message": f"Upload of conversation {conversation_id} initiated",
@@ -477,3 +338,5 @@ async def upload_conversation_to_hub(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading conversation: {str(e)}"
         )
+
+
