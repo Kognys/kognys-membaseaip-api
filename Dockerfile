@@ -16,11 +16,8 @@ COPY . .
 # Install the membase package in development mode first
 RUN pip install -e .
 
-# Change to API directory
-WORKDIR /app/membase-api
-
 # Install API dependencies
-RUN pip install -r requirements.txt
+RUN pip install -r membase-api/requirements.txt
 
 # Set environment variables for Railway
 ENV PORT=8000
@@ -30,4 +27,4 @@ ENV API_HOST=0.0.0.0
 EXPOSE 8000
 
 # Run the FastAPI application
-CMD ["python", "main.py"]
+CMD ["python", "membase-api/main.py"]
