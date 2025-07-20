@@ -20,15 +20,25 @@ RUN pip install --upgrade pip
 # Install the membase package in development mode first
 RUN pip install -e .
 
-# Create a simple alternative for AIP imports if installation fails
-# This ensures the API can start even if AIP installation has issues
+# Install core AIP dependencies first to avoid conflicts
+# These are the critical dependencies that must be installed
+RUN pip install \
+    autogen-core==0.4.8 \
+    mcp>=1.2.1 \
+    chromadb>=0.6.0 \
+    instructor>=1.7.0 \
+    scikit-learn>=1.6.0 \
+    grpcio==1.70.0 \
+    tiktoken>=0.9.0 \
+    openai>=1.0.0
+
+# Create a fallback import mechanism
 RUN mkdir -p /app/fallback_modules && \
     echo "import sys; sys.path.insert(0, '/app/aip-agent/src')" > /app/fallback_modules/aip_import_fix.py
 
-# Try to install AIP agent, but don't fail the build if it doesn't work
-RUN pip install -e ./aip-agent 2>&1 || \
-    (echo "Warning: aip-agent pip install failed, using fallback import method" && \
-     echo "import sys; sys.path.insert(0, '/app/aip-agent/src')" >> /app/membase-api/startup_imports.py)
+# Now install AIP agent without dependencies to avoid conflicts
+RUN pip install --no-deps -e ./aip-agent && \
+    echo "import sys; sys.path.insert(0, '/app/aip-agent/src')" > /app/membase-api/startup_imports.py
 
 # Install API dependencies
 RUN pip install -r membase-api/requirements.txt
