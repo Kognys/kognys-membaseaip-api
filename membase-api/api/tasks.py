@@ -35,36 +35,43 @@ async def create_task(
     try:
         # Check if task already exists
         task_info = chain.getTask(request.task_id)
-        if task_info and task_info[0]:  # task_info[0] is the 'finished' flag
-            return CreateTaskResponse(
-                success=False,
-                message=f"Task {request.task_id} already exists",
-                task_id=request.task_id
-            )
+        if task_info and task_info[1] != "0x0000000000000000000000000000000000000000":  # task_info[1] is owner
+            if task_info[0]:  # Already finished
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Task {request.task_id} already exists and is finished"
+                )
+            else:  # Already exists but not finished
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Task {request.task_id} already exists"
+                )
         
         # Create the task (waits for blockchain confirmation)
-        try:
-            tx_hash = chain.createTask(request.task_id, request.price)
-            
-            if tx_hash:
-                return CreateTaskResponse(
-                    success=True,
-                    message=f"Task {request.task_id} created and confirmed on blockchain with price {request.price}",
-                    task_id=request.task_id,
-                    transaction_hash=tx_hash
-                )
-            else:
-                # Transaction was sent but failed on blockchain
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Transaction failed on blockchain for task {request.task_id}"
-                )
-        except Exception as chain_error:
-            # Chain operation failed (before or during transaction)
+        tx_hash = chain.createTask(request.task_id, request.price)
+        
+        # Chain method returns None if already owned by same wallet, or tx_hash if successful
+        if tx_hash is None:
+            # This should not happen due to our check above, but just in case
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected: Task {request.task_id} already owned by current wallet"
+            )
+        
+        if not tx_hash:
+            # Transaction was sent but failed on blockchain  
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to create task {request.task_id}: {str(chain_error)}"
+                detail=f"Transaction failed on blockchain for task {request.task_id}"
             )
+        
+        # Success - transaction confirmed on blockchain
+        return CreateTaskResponse(
+            success=True,
+            message=f"Task {request.task_id} created and confirmed on blockchain with price {request.price}",
+            task_id=request.task_id,
+            transaction_hash=tx_hash
+        )
             
     except Exception as e:
         raise HTTPException(
@@ -90,55 +97,58 @@ async def join_task(
         # Verify agent is registered
         agent_address = chain.get_agent(request.agent_id)
         if not agent_address or agent_address == "0x0000000000000000000000000000000000000000":
-            return JoinTaskResponse(
-                success=False,
-                message=f"Agent {request.agent_id} is not registered",
-                task_id=task_id,
-                agent_id=request.agent_id
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Agent {request.agent_id} is not registered"
             )
         
         # Check if task exists and is not finished
         task_info = chain.getTask(task_id)
-        if not task_info:
-            return JoinTaskResponse(
-                success=False,
-                message=f"Task {task_id} does not exist",
-                task_id=task_id,
-                agent_id=request.agent_id
+        if not task_info or task_info[1] == "0x0000000000000000000000000000000000000000":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} does not exist"
             )
             
         if task_info[0]:  # Task is finished
-            return JoinTaskResponse(
-                success=False,
-                message=f"Task {task_id} is already finished",
-                task_id=task_id,
-                agent_id=request.agent_id
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Task {task_id} is already finished"
+            )
+        
+        # Check if agent already has permission for this task
+        if chain.has_auth(task_id, request.agent_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Agent {request.agent_id} already has permission for task {task_id}"
             )
         
         # Join the task (waits for blockchain confirmation)
-        try:
-            tx_hash = chain.joinTask(task_id, request.agent_id)
-            
-            if tx_hash:
-                return JoinTaskResponse(
-                    success=True,
-                    message=f"Agent {request.agent_id} joined task {task_id} and confirmed on blockchain",
-                    task_id=task_id,
-                    agent_id=request.agent_id,
-                    transaction_hash=tx_hash
-                )
-            else:
-                # Transaction was sent but failed on blockchain
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Transaction failed on blockchain for joining task {task_id}"
-                )
-        except Exception as chain_error:
-            # Chain operation failed (before or during transaction)
+        tx_hash = chain.joinTask(task_id, request.agent_id)
+        
+        # Chain method returns None if already has permission, or tx_hash if successful
+        if tx_hash is None:
+            # This should not happen due to our check above, but just in case
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected: Agent {request.agent_id} already has permission for task {task_id}"
+            )
+        
+        if not tx_hash:
+            # Transaction was sent but failed on blockchain
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to join task {task_id}: {str(chain_error)}"
+                detail=f"Transaction failed on blockchain for joining task {task_id}"
             )
+        
+        # Success - transaction confirmed on blockchain
+        return JoinTaskResponse(
+            success=True,
+            message=f"Agent {request.agent_id} joined task {task_id} and confirmed on blockchain",
+            task_id=task_id,
+            agent_id=request.agent_id,
+            transaction_hash=tx_hash
+        )
             
     except Exception as e:
         raise HTTPException(
@@ -164,55 +174,50 @@ async def finish_task(
         # Verify agent is registered
         agent_address = chain.get_agent(request.agent_id)
         if not agent_address or agent_address == "0x0000000000000000000000000000000000000000":
-            return FinishTaskResponse(
-                success=False,
-                message=f"Agent {request.agent_id} is not registered",
-                task_id=task_id,
-                agent_id=request.agent_id
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Agent {request.agent_id} is not registered"
             )
         
         # Check if task exists and is not already finished
         task_info = chain.getTask(task_id)
-        if not task_info:
-            return FinishTaskResponse(
-                success=False,
-                message=f"Task {task_id} does not exist",
-                task_id=task_id,
-                agent_id=request.agent_id
+        if not task_info or task_info[1] == "0x0000000000000000000000000000000000000000":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} does not exist"
             )
             
         if task_info[0]:  # Task is already finished
-            return FinishTaskResponse(
-                success=False,
-                message=f"Task {task_id} is already finished by {task_info[4]}",
-                task_id=task_id,
-                agent_id=request.agent_id
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Task {task_id} is already finished by {task_info[4]}"
             )
         
         # Finish the task (waits for blockchain confirmation)
-        try:
-            tx_hash = chain.finishTask(task_id, request.agent_id)
-            
-            if tx_hash:
-                return FinishTaskResponse(
-                    success=True,
-                    message=f"Task {task_id} finished and confirmed on blockchain by agent {request.agent_id}",
-                    task_id=task_id,
-                    agent_id=request.agent_id,
-                    transaction_hash=tx_hash
-                )
-            else:
-                # Transaction was sent but failed on blockchain
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Transaction failed on blockchain for finishing task {task_id}"
-                )
-        except Exception as chain_error:
-            # Chain operation failed (before or during transaction)
+        tx_hash = chain.finishTask(task_id, request.agent_id)
+        
+        # Chain method should always return tx_hash or raise exception for finishTask
+        if tx_hash is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected: finishTask returned None for task {task_id}"
+            )
+        
+        if not tx_hash:
+            # Transaction was sent but failed on blockchain
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to finish task {task_id}: {str(chain_error)}"
+                detail=f"Transaction failed on blockchain for finishing task {task_id}"
             )
+        
+        # Success - transaction confirmed on blockchain
+        return FinishTaskResponse(
+            success=True,
+            message=f"Task {task_id} finished and confirmed on blockchain by agent {request.agent_id}",
+            task_id=task_id,
+            agent_id=request.agent_id,
+            transaction_hash=tx_hash
+        )
             
     except Exception as e:
         raise HTTPException(

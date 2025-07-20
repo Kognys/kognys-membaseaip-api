@@ -45,39 +45,39 @@ async def register_agent(
         # Check if agent already exists
         existing_address = chain.get_agent(request.agent_id)
         if existing_address and existing_address != "0x0000000000000000000000000000000000000000":
-            return RegisterAgentResponse(
-                success=False,
-                message=f"Agent {request.agent_id} is already registered",
-                agent_id=request.agent_id,
-                address=existing_address
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Agent {request.agent_id} is already registered with address {existing_address}"
             )
         
         # Register the agent (waits for blockchain confirmation)
-        try:
-            tx_hash = chain.register(request.agent_id)
-            
-            if tx_hash:
-                # Get the registered address
-                address = chain.get_agent(request.agent_id)
-                return RegisterAgentResponse(
-                    success=True,
-                    message=f"Agent {request.agent_id} registered and confirmed on blockchain",
-                    agent_id=request.agent_id,
-                    address=address,
-                    transaction_hash=tx_hash
-                )
-            else:
-                # Transaction was sent but failed on blockchain
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Transaction failed on blockchain for registering agent {request.agent_id}"
-                )
-        except Exception as chain_error:
-            # Chain operation failed (before or during transaction)
+        tx_hash = chain.register(request.agent_id)
+        
+        # Chain method returns None if already registered to same wallet, or tx_hash if successful
+        if tx_hash is None:
+            # This should not happen due to our check above, but just in case
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected: Agent {request.agent_id} already registered to current wallet"
+            )
+        
+        if not tx_hash:
+            # Transaction was sent but failed on blockchain
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to register agent {request.agent_id}: {str(chain_error)}"
+                detail=f"Transaction failed on blockchain for registering agent {request.agent_id}"
             )
+        
+        # Success - transaction confirmed on blockchain
+        # Get the registered address
+        address = chain.get_agent(request.agent_id)
+        return RegisterAgentResponse(
+            success=True,
+            message=f"Agent {request.agent_id} registered and confirmed on blockchain",
+            agent_id=request.agent_id,
+            address=address,
+            transaction_hash=tx_hash
+        )
             
     except Exception as e:
         raise HTTPException(
@@ -132,46 +132,48 @@ async def buy_authorization(
         seller_address = chain.get_agent(request.seller_id)
         
         if not buyer_address or buyer_address == "0x0000000000000000000000000000000000000000":
-            return BuyAuthResponse(
-                success=False,
-                message=f"Buyer agent {request.buyer_id} is not registered"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Buyer agent {request.buyer_id} is not registered"
             )
             
         if not seller_address or seller_address == "0x0000000000000000000000000000000000000000":
-            return BuyAuthResponse(
-                success=False,
-                message=f"Seller agent {request.seller_id} is not registered"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Seller agent {request.seller_id} is not registered"
             )
         
         # Check if authorization already exists
         if chain.has_auth(request.buyer_id, request.seller_id):
-            return BuyAuthResponse(
-                success=True,
-                message=f"Agent {request.buyer_id} already has authorization from {request.seller_id}"
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Agent {request.buyer_id} already has authorization from {request.seller_id}"
             )
         
         # Buy authorization (waits for blockchain confirmation)
-        try:
-            tx_hash = chain.buy(request.buyer_id, request.seller_id)
-            
-            if tx_hash:
-                return BuyAuthResponse(
-                    success=True,
-                    message=f"Authorization purchased and confirmed on blockchain",
-                    transaction_hash=tx_hash
-                )
-            else:
-                # Transaction was sent but failed on blockchain
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Transaction failed on blockchain for purchasing authorization"
-                )
-        except Exception as chain_error:
-            # Chain operation failed (before or during transaction)
+        tx_hash = chain.buy(request.buyer_id, request.seller_id)
+        
+        # Chain method returns None if permission already exists, or tx_hash if successful
+        if tx_hash is None:
+            # This should not happen due to our check above, but just in case
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected: Authorization already exists between {request.buyer_id} and {request.seller_id}"
+            )
+        
+        if not tx_hash:
+            # Transaction was sent but failed on blockchain
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to purchase authorization: {str(chain_error)}"
+                detail=f"Transaction failed on blockchain for purchasing authorization"
             )
+        
+        # Success - transaction confirmed on blockchain
+        return BuyAuthResponse(
+            success=True,
+            message=f"Authorization purchased and confirmed on blockchain",
+            transaction_hash=tx_hash
+        )
             
     except Exception as e:
         raise HTTPException(
