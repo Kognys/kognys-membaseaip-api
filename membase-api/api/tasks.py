@@ -34,10 +34,26 @@ async def create_task(
     """
     try:
         # Check if task already exists
-        task_info = chain.getTask(request.task_id)
+        try:
+            task_info = chain.getTask(request.task_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
+        
         if task_info and task_info[1] != "0x0000000000000000000000000000000000000000":  # task_info[1] is owner
             # If already owned by current wallet, treat as conflict
-            if task_info[1].lower() == chain.wallet_address.lower():
+            try:
+                current_wallet = chain.wallet_address.lower()
+                owner_wallet = task_info[1].lower()
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Chain configuration error: {str(e)}"
+                )
+                
+            if owner_wallet == current_wallet:
                 if task_info[0]:  # Already finished
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
@@ -62,7 +78,31 @@ async def create_task(
                     )
         
         # Create the task (waits for blockchain confirmation)
-        tx_hash = chain.createTask(request.task_id, request.price)
+        try:
+            tx_hash = chain.createTask(request.task_id, request.price)
+        except Exception as e:
+            # Check if this is a known blockchain error
+            error_msg = str(e).lower()
+            if "already register" in error_msg or "already exists" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Task {request.task_id} already exists: {str(e)}"
+                )
+            elif "connection" in error_msg or "timeout" in error_msg or "rpc" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Blockchain connection error: {str(e)}"
+                )
+            elif "insufficient" in error_msg or "gas" in error_msg or "balance" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Blockchain transaction error: {str(e)}"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Blockchain error: {str(e)}"
+                )
         
         # Chain method returns None if already owned by same wallet, or tx_hash if successful
         if tx_hash is None:
@@ -87,10 +127,14 @@ async def create_task(
             transaction_hash=tx_hash
         )
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as they already have proper status codes
+        raise
     except Exception as e:
+        # Catch any remaining unexpected errors
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating task: {str(e)}"
+            detail=f"Unexpected error creating task: {str(e)}"
         )
 
 

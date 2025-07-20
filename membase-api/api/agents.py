@@ -43,10 +43,26 @@ async def register_agent(
     """
     try:
         # Check if agent already exists
-        existing_address = chain.get_agent(request.agent_id)
+        try:
+            existing_address = chain.get_agent(request.agent_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
+            
         if existing_address and existing_address != "0x0000000000000000000000000000000000000000":
             # If already registered to current wallet, treat as conflict but with helpful message
-            if existing_address.lower() == chain.wallet_address.lower():
+            try:
+                current_wallet = chain.wallet_address.lower()
+                existing_wallet = existing_address.lower()
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Chain configuration error: {str(e)}"
+                )
+                
+            if existing_wallet == current_wallet:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Agent {request.agent_id} is already registered to current wallet {existing_address}"
@@ -59,7 +75,31 @@ async def register_agent(
                 )
         
         # Register the agent (waits for blockchain confirmation)
-        tx_hash = chain.register(request.agent_id)
+        try:
+            tx_hash = chain.register(request.agent_id)
+        except Exception as e:
+            # Check if this is a known blockchain error
+            error_msg = str(e).lower()
+            if "already register" in error_msg or "already exists" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Agent {request.agent_id} already registered: {str(e)}"
+                )
+            elif "connection" in error_msg or "timeout" in error_msg or "rpc" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Blockchain connection error: {str(e)}"
+                )
+            elif "insufficient" in error_msg or "gas" in error_msg or "balance" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Blockchain transaction error: {str(e)}"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Blockchain error: {str(e)}"
+                )
         
         # Chain method returns None if already registered to same wallet, or tx_hash if successful
         if tx_hash is None:
@@ -87,10 +127,14 @@ async def register_agent(
             transaction_hash=tx_hash
         )
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as they already have proper status codes
+        raise
     except Exception as e:
+        # Catch any remaining unexpected errors
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error registering agent: {str(e)}"
+            detail=f"Unexpected error registering agent: {str(e)}"
         )
 
 

@@ -2,7 +2,11 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Header, status
 from membase.memory.multi_memory import MultiMemory
 from membase.knowledge.chroma import ChromaKnowledgeBase
-from membase.chain.chain import membase_chain
+try:
+    from membase.chain.chain import membase_chain
+except Exception as e:
+    print(f"Failed to initialize blockchain client: {e}")
+    membase_chain = None
 from core.config import settings
 
 
@@ -37,6 +41,11 @@ def get_knowledge_base() -> ChromaKnowledgeBase:
 
 def get_chain():
     """Get the membase chain client."""
+    if membase_chain is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Blockchain client is not available. Check environment variables: MEMBASE_ACCOUNT, MEMBASE_SECRET_KEY, MEMBASE_ID"
+        )
     return membase_chain
 
 
