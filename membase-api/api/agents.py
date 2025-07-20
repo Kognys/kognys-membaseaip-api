@@ -52,23 +52,31 @@ async def register_agent(
                 address=existing_address
             )
         
-        # Register the agent
-        result = chain.register(request.agent_id)
-        
-        if result:
-            # Get the registered address
-            address = chain.get_agent(request.agent_id)
-            return RegisterAgentResponse(
-                success=True,
-                message=f"Agent {request.agent_id} registered successfully",
-                agent_id=request.agent_id,
-                address=address
-            )
-        else:
-            return RegisterAgentResponse(
-                success=False,
-                message=f"Failed to register agent {request.agent_id}",
-                agent_id=request.agent_id
+        # Register the agent (waits for blockchain confirmation)
+        try:
+            tx_hash = chain.register(request.agent_id)
+            
+            if tx_hash:
+                # Get the registered address
+                address = chain.get_agent(request.agent_id)
+                return RegisterAgentResponse(
+                    success=True,
+                    message=f"Agent {request.agent_id} registered and confirmed on blockchain",
+                    agent_id=request.agent_id,
+                    address=address,
+                    transaction_hash=tx_hash
+                )
+            else:
+                # Transaction was sent but failed on blockchain
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Transaction failed on blockchain for registering agent {request.agent_id}"
+                )
+        except Exception as chain_error:
+            # Chain operation failed (before or during transaction)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to register agent {request.agent_id}: {str(chain_error)}"
             )
             
     except Exception as e:
@@ -142,19 +150,27 @@ async def buy_authorization(
                 message=f"Agent {request.buyer_id} already has authorization from {request.seller_id}"
             )
         
-        # Buy authorization
-        result = chain.buy(request.buyer_id, request.seller_id)
-        
-        if result:
-            return BuyAuthResponse(
-                success=True,
-                message=f"Authorization purchased successfully",
-                transaction_hash=None  # Could be enhanced to return actual tx hash
-            )
-        else:
-            return BuyAuthResponse(
-                success=False,
-                message=f"Failed to purchase authorization"
+        # Buy authorization (waits for blockchain confirmation)
+        try:
+            tx_hash = chain.buy(request.buyer_id, request.seller_id)
+            
+            if tx_hash:
+                return BuyAuthResponse(
+                    success=True,
+                    message=f"Authorization purchased and confirmed on blockchain",
+                    transaction_hash=tx_hash
+                )
+            else:
+                # Transaction was sent but failed on blockchain
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Transaction failed on blockchain for purchasing authorization"
+                )
+        except Exception as chain_error:
+            # Chain operation failed (before or during transaction)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to purchase authorization: {str(chain_error)}"
             )
             
     except Exception as e:

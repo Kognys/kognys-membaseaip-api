@@ -42,21 +42,28 @@ async def create_task(
                 task_id=request.task_id
             )
         
-        # Create the task
-        tx_hash = chain.createTask(request.task_id, request.price)
-        
-        if tx_hash:
-            return CreateTaskResponse(
-                success=True,
-                message=f"Task {request.task_id} created successfully with price {request.price}",
-                task_id=request.task_id,
-                transaction_hash=tx_hash
-            )
-        else:
-            return CreateTaskResponse(
-                success=False,
-                message=f"Failed to create task {request.task_id}",
-                task_id=request.task_id
+        # Create the task (waits for blockchain confirmation)
+        try:
+            tx_hash = chain.createTask(request.task_id, request.price)
+            
+            if tx_hash:
+                return CreateTaskResponse(
+                    success=True,
+                    message=f"Task {request.task_id} created and confirmed on blockchain with price {request.price}",
+                    task_id=request.task_id,
+                    transaction_hash=tx_hash
+                )
+            else:
+                # Transaction was sent but failed on blockchain
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Transaction failed on blockchain for task {request.task_id}"
+                )
+        except Exception as chain_error:
+            # Chain operation failed (before or during transaction)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to create task {request.task_id}: {str(chain_error)}"
             )
             
     except Exception as e:
@@ -108,23 +115,29 @@ async def join_task(
                 agent_id=request.agent_id
             )
         
-        # Join the task
-        tx_hash = chain.joinTask(task_id, request.agent_id)
-        
-        if tx_hash:
-            return JoinTaskResponse(
-                success=True,
-                message=f"Agent {request.agent_id} joined task {task_id} successfully",
-                task_id=task_id,
-                agent_id=request.agent_id,
-                transaction_hash=tx_hash
-            )
-        else:
-            return JoinTaskResponse(
-                success=False,
-                message=f"Failed to join task {task_id}",
-                task_id=task_id,
-                agent_id=request.agent_id
+        # Join the task (waits for blockchain confirmation)
+        try:
+            tx_hash = chain.joinTask(task_id, request.agent_id)
+            
+            if tx_hash:
+                return JoinTaskResponse(
+                    success=True,
+                    message=f"Agent {request.agent_id} joined task {task_id} and confirmed on blockchain",
+                    task_id=task_id,
+                    agent_id=request.agent_id,
+                    transaction_hash=tx_hash
+                )
+            else:
+                # Transaction was sent but failed on blockchain
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Transaction failed on blockchain for joining task {task_id}"
+                )
+        except Exception as chain_error:
+            # Chain operation failed (before or during transaction)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to join task {task_id}: {str(chain_error)}"
             )
             
     except Exception as e:
@@ -176,23 +189,29 @@ async def finish_task(
                 agent_id=request.agent_id
             )
         
-        # Finish the task
-        tx_hash = chain.finishTask(task_id, request.agent_id)
-        
-        if tx_hash:
-            return FinishTaskResponse(
-                success=True,
-                message=f"Task {task_id} finished successfully by agent {request.agent_id}",
-                task_id=task_id,
-                agent_id=request.agent_id,
-                transaction_hash=tx_hash
-            )
-        else:
-            return FinishTaskResponse(
-                success=False,
-                message=f"Failed to finish task {task_id}",
-                task_id=task_id,
-                agent_id=request.agent_id
+        # Finish the task (waits for blockchain confirmation)
+        try:
+            tx_hash = chain.finishTask(task_id, request.agent_id)
+            
+            if tx_hash:
+                return FinishTaskResponse(
+                    success=True,
+                    message=f"Task {task_id} finished and confirmed on blockchain by agent {request.agent_id}",
+                    task_id=task_id,
+                    agent_id=request.agent_id,
+                    transaction_hash=tx_hash
+                )
+            else:
+                # Transaction was sent but failed on blockchain
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Transaction failed on blockchain for finishing task {task_id}"
+                )
+        except Exception as chain_error:
+            # Chain operation failed (before or during transaction)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to finish task {task_id}: {str(chain_error)}"
             )
             
     except Exception as e:

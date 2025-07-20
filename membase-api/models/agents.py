@@ -19,6 +19,7 @@ class RegisterAgentResponse(BaseModel):
     message: str
     agent_id: str
     address: Optional[str] = None
+    transaction_hash: Optional[str] = None
 
 
 class BuyAuthRequest(BaseModel):
