@@ -187,20 +187,29 @@ async def join_task(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Task {task_id} is already finished"
             )
+            
+        # Check if agent is trying to join their own task (use already retrieved agent_address)
+        task_owner = task_info[1]  # task_info[1] is the owner address
         
-        # Check if agent already has permission for this task
+        if agent_address and agent_address.lower() == task_owner.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Agent {request.agent_id} cannot join their own task {task_id}"
+            )
+        
+        # Check if agent has already joined this task
         try:
-            has_permission = chain.has_auth(task_id, request.agent_id)
+            already_joined = chain.membase.functions.getPermission(task_id, request.agent_id).call()
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Unable to connect to blockchain: {str(e)}"
             )
             
-        if has_permission:
+        if already_joined:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Agent {request.agent_id} already has permission for task {task_id}"
+                detail=f"Agent {request.agent_id} has already joined task {task_id}"
             )
         
         # Join the task (waits for blockchain confirmation)
