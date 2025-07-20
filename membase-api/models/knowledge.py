@@ -69,7 +69,7 @@ class AddDocumentsResponse(BaseModel):
 class QueryDocumentsRequest(BaseModel):
     query: str = Field(..., description="Search query")
     top_k: int = Field(5, description="Number of results to return", ge=1, le=100)
-    similarity_threshold: Optional[float] = Field(0.7, description="Minimum similarity score", ge=0.0, le=1.0)
+    similarity_threshold: Optional[float] = Field(0.1, description="Minimum similarity score", ge=0.0, le=1.0)
     metadata_filter: Optional[Dict[str, Any]] = Field(None, description="Filter by metadata")
     content_filter: Optional[str] = Field(None, description="Filter by content substring")
     

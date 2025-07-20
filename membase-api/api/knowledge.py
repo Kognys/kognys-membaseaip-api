@@ -134,7 +134,7 @@ async def list_documents(
 async def search_documents(
     query: Optional[str] = None,
     top_k: int = 5,
-    similarity_threshold: float = 0.7,
+    similarity_threshold: float = 0.1,
     metadata_filter: Optional[str] = None,
     content_filter: Optional[str] = None,
     kb: ChromaKnowledgeBase = knowledge_dep,
