@@ -73,12 +73,7 @@ class AIPAgentManager:
             raise Exception(f"Maximum number of agents ({settings.aip_max_agents}) reached")
             
         try:
-            # Create LLM instance
-            llm = None
-            if settings.aip_default_llm == "openai" and settings.openai_api_key:
-                llm = OpenAIAugmentedLLM(api_key=settings.openai_api_key)
-            
-            # Create agent wrapper
+            # Create agent wrapper without LLM
             wrapper = FullAgentWrapper(
                 agent_cls=Agent,
                 name=agent_id,
@@ -88,8 +83,8 @@ class AIPAgentManager:
                 default_conversation_id=default_conversation_id
             )
             
-            # Initialize the agent
-            await wrapper.initialize(llm=llm)
+            # Initialize the agent (it will create its own LLM internally)
+            await wrapper.initialize()
             
             # Store agent info
             agent_info = ActiveAgentInfo(agent_id, wrapper, datetime.utcnow())
