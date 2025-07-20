@@ -153,7 +153,14 @@ async def join_task(
     """
     try:
         # Verify agent is registered
-        agent_address = chain.get_agent(request.agent_id)
+        try:
+            agent_address = chain.get_agent(request.agent_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
+            
         if not agent_address or agent_address == "0x0000000000000000000000000000000000000000":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -161,7 +168,14 @@ async def join_task(
             )
         
         # Check if task exists and is not finished
-        task_info = chain.getTask(task_id)
+        try:
+            task_info = chain.getTask(task_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
+            
         if not task_info or task_info[1] == "0x0000000000000000000000000000000000000000":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -175,14 +189,46 @@ async def join_task(
             )
         
         # Check if agent already has permission for this task
-        if chain.has_auth(task_id, request.agent_id):
+        try:
+            has_permission = chain.has_auth(task_id, request.agent_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
+            
+        if has_permission:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Agent {request.agent_id} already has permission for task {task_id}"
             )
         
         # Join the task (waits for blockchain confirmation)
-        tx_hash = chain.joinTask(task_id, request.agent_id)
+        try:
+            tx_hash = chain.joinTask(task_id, request.agent_id)
+        except Exception as e:
+            # Check if this is a known blockchain error
+            error_msg = str(e).lower()
+            if "already finish" in error_msg or "already join" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Cannot join task {task_id}: {str(e)}"
+                )
+            elif "connection" in error_msg or "timeout" in error_msg or "rpc" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Blockchain connection error: {str(e)}"
+                )
+            elif "insufficient" in error_msg or "gas" in error_msg or "balance" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Blockchain transaction error: {str(e)}"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Blockchain error: {str(e)}"
+                )
         
         # Chain method returns None if already has permission, or tx_hash if successful
         if tx_hash is None:
@@ -208,10 +254,14 @@ async def join_task(
             transaction_hash=tx_hash
         )
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as they already have proper status codes
+        raise
     except Exception as e:
+        # Catch any remaining unexpected errors
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error joining task: {str(e)}"
+            detail=f"Unexpected error joining task: {str(e)}"
         )
 
 
@@ -230,7 +280,14 @@ async def finish_task(
     """
     try:
         # Verify agent is registered
-        agent_address = chain.get_agent(request.agent_id)
+        try:
+            agent_address = chain.get_agent(request.agent_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
+            
         if not agent_address or agent_address == "0x0000000000000000000000000000000000000000":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -238,7 +295,14 @@ async def finish_task(
             )
         
         # Check if task exists and is not already finished
-        task_info = chain.getTask(task_id)
+        try:
+            task_info = chain.getTask(task_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
+            
         if not task_info or task_info[1] == "0x0000000000000000000000000000000000000000":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -252,7 +316,31 @@ async def finish_task(
             )
         
         # Finish the task (waits for blockchain confirmation)
-        tx_hash = chain.finishTask(task_id, request.agent_id)
+        try:
+            tx_hash = chain.finishTask(task_id, request.agent_id)
+        except Exception as e:
+            # Check if this is a known blockchain error
+            error_msg = str(e).lower()
+            if "already finish" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Task {task_id} is already finished: {str(e)}"
+                )
+            elif "connection" in error_msg or "timeout" in error_msg or "rpc" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Blockchain connection error: {str(e)}"
+                )
+            elif "insufficient" in error_msg or "gas" in error_msg or "balance" in error_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Blockchain transaction error: {str(e)}"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Blockchain error: {str(e)}"
+                )
         
         # Chain method should always return tx_hash or raise exception for finishTask
         if tx_hash is None:
@@ -277,10 +365,14 @@ async def finish_task(
             transaction_hash=tx_hash
         )
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as they already have proper status codes
+        raise
     except Exception as e:
+        # Catch any remaining unexpected errors
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error finishing task: {str(e)}"
+            detail=f"Unexpected error finishing task: {str(e)}"
         )
 
 
@@ -296,7 +388,13 @@ async def get_task_info(
     Returns the task's status, owner, price, value, and winner (if finished).
     """
     try:
-        task_info = chain.getTask(task_id)
+        try:
+            task_info = chain.getTask(task_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to connect to blockchain: {str(e)}"
+            )
         
         if not task_info:
             return TaskInfoResponse(
