@@ -73,15 +73,15 @@ async def add_documents(
             docs_to_add.append(doc)
         
         # Add documents to knowledge base
-        added_docs = kb.add_documents(docs_to_add, strict=request.strict)
+        kb.add_documents(docs_to_add, strict=request.strict)
         
         # Convert to response format
-        doc_responses = [document_to_response(doc) for doc in added_docs]
+        doc_responses = [document_to_response(doc) for doc in docs_to_add]
         
         return AddDocumentsResponse(
             success=True,
-            message=f"Successfully added {len(added_docs)} documents",
-            documents_added=len(added_docs),
+            message=f"Successfully added {len(docs_to_add)} documents",
+            documents_added=len(docs_to_add),
             documents=doc_responses
         )
         
