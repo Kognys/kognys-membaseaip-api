@@ -16,6 +16,9 @@ COPY . .
 # Install the membase package in development mode first
 RUN pip install -e .
 
+# Install the aip-agent package in development mode
+RUN pip install -e ./aip-agent
+
 # Install API dependencies
 RUN pip install -r membase-api/requirements.txt
 
