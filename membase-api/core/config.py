@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     
     # AIP Configuration
     enable_aip: bool = os.getenv("ENABLE_AIP", "true").lower() == "true"
-    aip_grpc_host: str = os.getenv("AIP_GRPC_HOST", "localhost:50051")
+    aip_grpc_host: str = os.getenv("AIP_GRPC_HOST", "54.169.29.193:8081")
     aip_agent_timeout: int = int(os.getenv("AIP_AGENT_TIMEOUT", "120"))
     aip_max_agents: int = int(os.getenv("AIP_MAX_AGENTS", "10"))
     aip_default_llm: str = os.getenv("AIP_DEFAULT_LLM", "openai")
