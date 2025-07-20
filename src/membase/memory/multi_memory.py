@@ -203,7 +203,7 @@ class MultiMemory:
         """
         conversations = hub_client.list_conversations(self._membase_account)
         if conversations and isinstance(conversations, list):
-            logging.info("remote conversations:", conversations)
+            logging.info("remote conversations: %s", conversations)
             for conv_id in conversations:
                 self.load_from_hub(conv_id)
         else:
