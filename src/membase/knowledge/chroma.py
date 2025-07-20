@@ -357,6 +357,40 @@ class ChromaKnowledgeBase(KnowledgeBase):
             embedding_function=self.embedding_function
         )
     
+    def get_all_documents(
+        self,
+        offset: int = 0,
+        limit: Optional[int] = None
+    ) -> List[Document]:
+        """
+        Get all documents from the knowledge base.
+        
+        Args:
+            offset: Number of documents to skip
+            limit: Maximum number of documents to return
+            
+        Returns:
+            List of all documents
+        """
+        collection_info = self.collection.get()
+        documents = []
+        
+        total_docs = len(collection_info["ids"])
+        if offset >= total_docs:
+            return documents
+            
+        end_idx = total_docs if limit is None else min(offset + limit, total_docs)
+        
+        for i in range(offset, end_idx):
+            doc = Document(
+                content=collection_info["documents"][i],
+                metadata=collection_info["metadatas"][i],
+                doc_id=collection_info["ids"][i]
+            )
+            documents.append(doc)
+            
+        return documents
+
     def get_stats(self) -> Dict[str, Any]:
         """
         Get statistics about the knowledge base.
@@ -365,8 +399,14 @@ class ChromaKnowledgeBase(KnowledgeBase):
             Dictionary containing various statistics
         """
         collection_info = self.collection.get()
+        doc_count = len(collection_info["ids"])
         return {
-            "num_documents": len(collection_info["ids"]),
+            "documents": doc_count,  # Field expected by API
+            "chunks": doc_count,  # Same as documents for ChromaDB
+            "collections": {self._collection_name: doc_count},
+            "size_estimate": doc_count * 1024,  # Rough estimate
+            # Legacy fields for backward compatibility
+            "num_documents": doc_count,
             "collection_name": self._collection_name,
             "embedding_function": self.embedding_function.__class__.__name__,
             "persist_directory": self._persist_directory

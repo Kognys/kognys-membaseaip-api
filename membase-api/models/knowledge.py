@@ -99,6 +99,13 @@ class QueryDocumentsResponse(BaseModel):
     total_results: int
 
 
+class ListDocumentsResponse(BaseModel):
+    documents: List[DocumentResponse]
+    total_count: int
+    offset: int
+    limit: Optional[int] = None
+
+
 class UpdateDocumentsRequest(BaseModel):
     documents: Union[DocumentUpdate, List[DocumentUpdate]] = Field(..., description="Document or list of documents to update")
     

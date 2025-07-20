@@ -13,6 +13,7 @@ from models.knowledge import (
     DeleteDocumentsRequest,
     DeleteDocumentsResponse,
     DocumentResponse,
+    ListDocumentsResponse,
     KnowledgeStatsResponse,
     OptimalThresholdRequest,
     OptimalThresholdResponse,
@@ -92,9 +93,46 @@ async def add_documents(
         )
 
 
+@router.get("/documents", response_model=ListDocumentsResponse)
+async def list_documents(
+    offset: int = 0,
+    limit: Optional[int] = None,
+    kb: ChromaKnowledgeBase = knowledge_dep,
+    _auth=auth_dep
+):
+    """
+    List all documents in the knowledge base.
+    
+    Supports pagination with offset and limit parameters.
+    """
+    try:
+        # Get all documents with pagination
+        documents = kb.get_all_documents(offset=offset, limit=limit)
+        
+        # Get total count
+        stats = kb.get_stats()
+        total_count = stats.get('documents', 0)
+        
+        # Convert to response format
+        doc_responses = [document_to_response(doc) for doc in documents]
+        
+        return ListDocumentsResponse(
+            documents=doc_responses,
+            total_count=total_count,
+            offset=offset,
+            limit=limit
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing documents: {str(e)}"
+        )
+
+
 @router.get("/documents/search", response_model=QueryDocumentsResponse)
 async def search_documents(
-    query: str,
+    query: Optional[str] = None,
     top_k: int = 5,
     similarity_threshold: float = 0.7,
     metadata_filter: Optional[str] = None,
@@ -105,6 +143,7 @@ async def search_documents(
     """
     Search for documents using similarity search.
     
+    If no query is provided, returns all documents (similar to listing).
     Returns the most similar documents based on the query, filtered by similarity threshold
     and optional metadata/content filters.
     """
@@ -121,7 +160,50 @@ async def search_documents(
                     detail="metadata_filter must be a valid JSON string"
                 )
         
-        # Retrieve documents
+        # If no query provided, return all documents (like listing)
+        if query is None or query.strip() == "":
+            documents = kb.get_all_documents(offset=0, limit=top_k)
+            
+            # Apply filters if provided
+            if metadata_dict or content_filter:
+                filtered_docs = []
+                for doc in documents:
+                    # Check metadata filter
+                    if metadata_dict:
+                        match = True
+                        for key, value in metadata_dict.items():
+                            if key not in doc.metadata or doc.metadata[key] != value:
+                                match = False
+                                break
+                        if not match:
+                            continue
+                    
+                    # Check content filter
+                    if content_filter and content_filter.lower() not in doc.content.lower():
+                        continue
+                        
+                    filtered_docs.append(doc)
+                documents = filtered_docs
+            
+            # Convert to query results with 1.0 similarity score
+            query_results = []
+            for doc in documents:
+                query_results.append(QueryResult(
+                    doc_id=doc.doc_id,
+                    content=doc.content,
+                    metadata=doc.metadata,
+                    similarity_score=1.0,  # Perfect score for listing
+                    created_at=doc.created_at,
+                    updated_at=doc.updated_at
+                ))
+            
+            return QueryDocumentsResponse(
+                query=query or "",
+                results=query_results,
+                total_results=len(query_results)
+            )
+        
+        # Retrieve documents using similarity search
         results = kb.retrieve(
             query=query,
             top_k=top_k,
