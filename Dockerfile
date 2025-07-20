@@ -21,7 +21,7 @@ RUN pip install --upgrade pip
 RUN pip install -e .
 
 # Install core AIP dependencies first to avoid conflicts
-# These are the critical dependencies that must be installed
+# Pin versions to match aip-agent requirements exactly
 RUN pip install \
     autogen-core==0.4.8 \
     mcp>=1.2.1 \
@@ -30,7 +30,14 @@ RUN pip install \
     scikit-learn>=1.6.0 \
     grpcio==1.70.0 \
     tiktoken>=0.9.0 \
-    openai>=1.0.0
+    openai>=1.0.0 \
+    pydantic>=2.10.4 \
+    pydantic-settings>=2.7.0 \
+    fastapi>=0.115.6 \
+    uvicorn \
+    starlette \
+    loguru>=0.7.3 \
+    rich>=13.9.4
 
 # Create a fallback import mechanism
 RUN mkdir -p /app/fallback_modules && \
