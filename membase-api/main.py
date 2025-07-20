@@ -4,6 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 import logging
+import os
+import sys
+
+# Try to import startup_imports if it exists (created by Dockerfile as fallback)
+try:
+    import startup_imports
+except ImportError:
+    pass
+
 from core.config import settings
 from api import agents, tasks, memory, knowledge, route
 
