@@ -45,20 +45,28 @@ async def register_agent(
         # Check if agent already exists
         existing_address = chain.get_agent(request.agent_id)
         if existing_address and existing_address != "0x0000000000000000000000000000000000000000":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Agent {request.agent_id} is already registered with address {existing_address}"
-            )
+            # If already registered to current wallet, treat as conflict but with helpful message
+            if existing_address.lower() == chain.wallet_address.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Agent {request.agent_id} is already registered to current wallet {existing_address}"
+                )
+            else:
+                # Registered to different wallet
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Agent {request.agent_id} is already registered to different wallet {existing_address}"
+                )
         
         # Register the agent (waits for blockchain confirmation)
         tx_hash = chain.register(request.agent_id)
         
         # Chain method returns None if already registered to same wallet, or tx_hash if successful
         if tx_hash is None:
-            # This should not happen due to our check above, but just in case
+            # This should not happen due to our check above, but handle as error
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected: Agent {request.agent_id} already registered to current wallet"
+                detail=f"Unexpected: Agent {request.agent_id} is already registered to current wallet"
             )
         
         if not tx_hash:

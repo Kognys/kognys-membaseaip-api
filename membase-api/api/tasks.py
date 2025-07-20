@@ -36,16 +36,30 @@ async def create_task(
         # Check if task already exists
         task_info = chain.getTask(request.task_id)
         if task_info and task_info[1] != "0x0000000000000000000000000000000000000000":  # task_info[1] is owner
-            if task_info[0]:  # Already finished
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Task {request.task_id} already exists and is finished"
-                )
-            else:  # Already exists but not finished
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Task {request.task_id} already exists"
-                )
+            # If already owned by current wallet, treat as conflict
+            if task_info[1].lower() == chain.wallet_address.lower():
+                if task_info[0]:  # Already finished
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Task {request.task_id} already exists and is finished (owned by current wallet)"
+                    )
+                else:  # Already exists but not finished
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Task {request.task_id} already exists (owned by current wallet)"
+                    )
+            else:
+                # Owned by different wallet
+                if task_info[0]:  # Already finished
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Task {request.task_id} already exists and is finished (owned by {task_info[1]})"
+                    )
+                else:  # Already exists but not finished
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Task {request.task_id} already exists (owned by {task_info[1]})"
+                    )
         
         # Create the task (waits for blockchain confirmation)
         tx_hash = chain.createTask(request.task_id, request.price)
