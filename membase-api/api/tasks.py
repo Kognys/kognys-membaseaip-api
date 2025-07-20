@@ -43,13 +43,14 @@ async def create_task(
             )
         
         # Create the task
-        result = chain.createTask(request.task_id, request.price)
+        tx_hash = chain.createTask(request.task_id, request.price)
         
-        if result:
+        if tx_hash:
             return CreateTaskResponse(
                 success=True,
                 message=f"Task {request.task_id} created successfully with price {request.price}",
-                task_id=request.task_id
+                task_id=request.task_id,
+                transaction_hash=tx_hash
             )
         else:
             return CreateTaskResponse(
@@ -108,14 +109,15 @@ async def join_task(
             )
         
         # Join the task
-        result = chain.joinTask(task_id, request.agent_id)
+        tx_hash = chain.joinTask(task_id, request.agent_id)
         
-        if result:
+        if tx_hash:
             return JoinTaskResponse(
                 success=True,
                 message=f"Agent {request.agent_id} joined task {task_id} successfully",
                 task_id=task_id,
-                agent_id=request.agent_id
+                agent_id=request.agent_id,
+                transaction_hash=tx_hash
             )
         else:
             return JoinTaskResponse(
@@ -175,14 +177,15 @@ async def finish_task(
             )
         
         # Finish the task
-        result = chain.finishTask(task_id, request.agent_id)
+        tx_hash = chain.finishTask(task_id, request.agent_id)
         
-        if result:
+        if tx_hash:
             return FinishTaskResponse(
                 success=True,
                 message=f"Task {task_id} finished successfully by agent {request.agent_id}",
                 task_id=task_id,
-                agent_id=request.agent_id
+                agent_id=request.agent_id,
+                transaction_hash=tx_hash
             )
         else:
             return FinishTaskResponse(
