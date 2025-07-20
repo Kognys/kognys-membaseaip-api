@@ -37,7 +37,11 @@ RUN pip install \
     uvicorn \
     starlette \
     loguru>=0.7.3 \
-    rich>=13.9.4
+    rich>=13.9.4 \
+    opentelemetry-distro>=0.50b0 \
+    opentelemetry-exporter-otlp-proto-http>=1.29.0 \
+    pyyaml>=6.0.2 \
+    typer>=0.15.1
 
 # Create a fallback import mechanism
 RUN mkdir -p /app/fallback_modules && \
