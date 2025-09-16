@@ -72,3 +72,4 @@ uv.lock
 *.tmp
 *.temp
 nohup.out
+.mcp.json
